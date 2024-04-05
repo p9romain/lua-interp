@@ -1,0 +1,4 @@
+(executables
+  (names showast)
+  (modules showast)
+  (libraries luaparser))

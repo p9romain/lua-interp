@@ -1,0 +1,5 @@
+/ocaml/_build
+/rust/target
+/lua/src/*.o
+/lua/src/lua
+/lua/src/luac

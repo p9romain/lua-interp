@@ -1,0 +1,16 @@
+co = coroutine.create(function ()
+    print("a")
+    coroutine.yield()
+    print(coroutine.status(co))
+    coroutine.yield()
+    print("c")
+end
+)
+
+print(coroutine.status(co))
+coroutine.mini_resume(co)
+print(coroutine.status(co))
+coroutine.mini_resume(co)
+print(coroutine.status(co))
+coroutine.mini_resume(co)
+print(coroutine.status(co))

@@ -1,0 +1,9 @@
+(library
+  (name luaparser)
+  (preprocess (pps ppx_deriving.show))
+)
+
+(ocamllex lexer)
+(menhir
+ (modules parser)
+ (flags --explain))

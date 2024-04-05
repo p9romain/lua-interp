@@ -1,0 +1,357 @@
+use super::internalast::{BinOp::{self, *}, Block, Exp, Exp_::*, FuncBody,
+                         FunctionCall::{self, *}, Number, RetStat,
+                         Stat::{self, *}, TableConstr, UnOp::{self, *}, Var::{self, *}};
+use super::lexer::Token;
+
+grammar;
+
+Empty: () = { }
+
+SepList<S,T>: Vec<T> = {
+    <T> => vec![<>],
+    <mut v:SepList<",", T>> S <x:T> => { v.push(x); v }
+}
+
+pub Block: Block = { <StatList> <RetStat?> }
+
+// Statements and statement lists are divided into two classes: those that can
+// be completed by "(Expr)" (via a function call), and those those that cannot.
+// We call the firstones "unsafe" and the second ones "safe".
+
+// Some of the non-terminals of the grammar are parameterized.
+// The LPar parameter is either "(" or Empty.
+// The BE parameter is either BaseExp, BaseExp0 or PrefixExpDef.
+//
+// These paramters control what is allowed at the start and end of the
+// statement:
+//     - If LPar is Empty, then no "(" is allowed at the start .
+//     - If BE is the non-terminal of the last base expression. It is either
+//       BaseExp, BaseExp0 or PrefixExpDef
+
+// Thanks to these two tricks, we solve the conflict where a parentherized
+// expression can either be attached to a preceding statement (as a function
+// call) or be the beginning of the next statement: we allow a statement to
+// start with a parenthesis only if the preceding statement is safe.
+
+StatList: Vec<Stat> = { <StatListSafe>, <StatListUnsafe> }
+
+StatListSafe: Vec<Stat> = {
+    => vec![],
+    <StatList> ";",
+    <mut v:StatListSafe> <s:StatSafe<"(">> => { v.push(s); v },
+    <mut v:StatListUnsafe> <s:StatSafe<Empty>> => { v.push(s); v }
+}
+
+StatListUnsafe: Vec<Stat> = {
+    <mut v:StatListSafe> <s:StatUnsafe<"(">> => { v.push(s); v },
+    <mut v:StatListUnsafe> <s:StatUnsafe<Empty>> => { v.push(s); v }
+}
+
+StatSafe<LPar>: Stat = {
+    <VarList<LPar>> "=" <ExpList<BaseExp0>> =>
+        Assign(<>),
+    "::" <NAME> "::" =>
+        Label(<>),
+    "break" =>
+        Break,
+    "goto" <NAME> =>
+        Goto(<>),
+    "do" <Block> "end" =>
+        DoEnd(<>),
+    "while" <ExpDef> "do" <Block> "end" =>
+        WhileDoEnd(<>),
+    "repeat" <Block> "until" <Exp<BaseExp0>> =>
+        RepeatUntil(<>),
+    "if" <e: ExpDef> "then" <b1: Block>
+        <mut br: ("elseif" <ExpDef> "then" <Block>)*>
+        <b2: ("else" <Block>)?> "end" =>
+    {
+        br.insert(0, (e, b1));
+        If(br, b2)
+    },
+    "for" <NAME> "=" <ExpDef> "," <ExpDef> <("," <ExpDef>)?> "do" <Block> "end" =>
+        ForStep(<>),
+    "for" <SepList<",", NAME>> "in" <SepList<",", ExpDef>> "do" <Block> "end" =>
+        ForIn(<>),
+    "function" <n: SepList<".", NAME>> (":" <NAME>)? <mut fb:FuncBody> =>
+    {
+        fb.0.insert(0, "self".to_owned());
+        let mut it = n.into_iter();
+        let mut v = Name(it.next().unwrap());
+        for n in it {
+            v = IndexTable(Box::new(Var(v)), Box::new(LiteralString(n)))
+        }
+        Assign(vec![v], vec![Box::new(FunctionDef(fb))])
+    },
+    "local" "function" <n:NAME> (":" <NAME>)? <fb:FuncBody> =>
+        LocalAssign(vec![n], Some(vec![Box::new(FunctionDef(fb))])),
+    "local" <SepList<",", NAME>> <("=" <ExpList<BaseExp0>>)?> =>
+        LocalAssign(<>)
+}
+
+StatUnsafe<LPar>: Stat = {
+    <VarList<LPar>> "=" <ExpList<PrefixExpDef>> =>
+        Assign(<>),
+    <FunctionCall<LPar>> =>
+        StatFunctionCall(<>),
+    "repeat" <Block> "until" <Exp<PrefixExpDef>> =>
+        RepeatUntil(<>),
+    "local" <ns:SepList<",", NAME>> "=" <es:ExpList<PrefixExpDef>> =>
+        LocalAssign(ns, Some(es))
+}
+
+RetStat: RetStat = {
+    "return" <SepList<",", ExpDef>> ";"?,
+    "return" ";"?            => vec![]
+}
+
+VarList<LPar>: Vec<Var> = {
+    Var<LPar> => vec![<>],
+    <mut v:VarList<LPar>> "," <x:Var<"(">> => { v.push(x); v }
+}
+
+Var<LPar>: Var = {
+    <NAME>                             => Name(<>),
+    <PrefixExp<LPar>> "[" <ExpDef> "]" => IndexTable(<>),
+    <pe:PrefixExp<LPar>> "." <n:NAME>  => IndexTable (pe, Box::new(LiteralString(n)))
+}
+
+ExpDef: Exp = { <Exp<BaseExp>> }
+
+ExpList<BE>: Vec<Exp> = {
+    <Exp<BE>> => vec![<>],
+    <mut v:SepList<",", ExpDef>> "," <x:Exp<BE>> => { v.push(x); v }
+}
+
+Exp<BE>: Exp = {
+    <Exp<BaseExp>> "or" <Exp1<BE>> =>
+        Box::new(BinOp(LogicalOr, <>)),
+    <Exp1<BE>>
+}
+
+Exp1<BE>: Exp = {
+    <Exp1<BaseExp>> "and" <Exp2<BE>> =>
+        Box::new(BinOp(LogicalAnd, <>)),
+    <Exp2<BE>>
+}
+
+Exp2<BE>: Exp = {
+    <e1:Exp2<BaseExp>> <b:BinOp2> <e2:Exp3<BE>> =>
+        Box::new(BinOp(b, e1, e2)),
+    <Exp3<BE>>
+}
+
+Exp3<BE>: Exp = {
+    <Exp3<BaseExp>> "|" <Exp4<BE>> =>
+        Box::new(BinOp(BitwiseOr, <>)),
+    <Exp4<BE>>
+}
+
+Exp4<BE>: Exp = {
+    <Exp4<BaseExp>> "~" <Exp5<BE>> =>
+        Box::new(BinOp(BitwiseXor, <>)),
+    <Exp5<BE>>
+}
+
+Exp5<BE>: Exp = {
+    <Exp5<BaseExp>> "&" <Exp6<BE>> =>
+        Box::new(BinOp(BitwiseAnd, <>)),
+    <Exp6<BE>>
+}
+
+Exp6<BE>: Exp = {
+    <e1:Exp6<BaseExp>> <b:BinOp6> <e2:Exp7<BE>> =>
+        Box::new(BinOp(b, e1, e2)),
+    <Exp7<BE>>
+}
+
+Exp7<BE>: Exp = {
+    <Exp7<BaseExp>> ".." <Exp8<BE>> =>
+        Box::new(BinOp(Concat, <>)),
+    <Exp8<BE>>
+}
+
+Exp8<BE>: Exp = {
+    <e1:Exp8<BaseExp>> <b:BinOp8> <e2:Exp9<BE>> =>
+        Box::new(BinOp(b, e1, e2)),
+    <Exp9<BE>>
+}
+
+Exp9<BE>: Exp = {
+    <e1:Exp9<BaseExp>> <b:BinOp9> <e2:Exp10<BE>> =>
+        Box::new(BinOp(b, e1, e2)),
+    <Exp10<BE>>
+}
+
+Exp10<BE>: Exp = {
+    <UnOp> <Exp11<BE>> =>
+        Box::new(UnOp(<>)),
+    <Exp11<BE>>
+}
+
+Exp11<BE>: Exp = {
+    <BaseExp> "^" <Exp11<BE>> =>
+        Box::new(BinOp(Exponentiation, <>)),
+    <BE>
+}
+
+BaseExp0: Exp = {
+    "nil"                           => Box::new(Nil),
+    "true"                          => Box::new(True),
+    "false"                         => Box::new(False),
+    <Number>                        => Box::new(Number(<>)),
+    <LITERALSTRING>                 => Box::new(LiteralString(<>)),
+    <TableConstr>                   => Box::new(Table(<>)),
+    "..."                           => Box::new(VarArg),
+    "function" <FuncBody>           => Box::new(FunctionDef(<>))
+}
+
+PrefixExpDef = { <PrefixExp<"(">> }
+
+BaseExp: Exp = { <BaseExp0>, <PrefixExpDef> }
+
+PrefixExp<LPar>: Exp = {
+    <FunctionCall<LPar>>            => Box::new(ExpFunctionCall(<>)),
+    <PExp<LPar>>
+}
+
+TableConstr: TableConstr = {
+    "{" "}" => vec![],
+    "{" <Fields> "}"
+}
+
+FieldSeparator: () = { ",", ";" }
+
+Fields: TableConstr = {
+    <Field> => vec![<>],
+    <mut v:Fields> FieldSeparator <f:Field> => { v.push(f); v }
+}
+
+Field: (Option<Exp>, Exp) = {
+    "[" <k:ExpDef> "]" "=" <v:ExpDef> => (Some(k), v),
+    <n:NAME> "=" <v:ExpDef> => (Some(Box::new(LiteralString(n))), v),
+    <ExpDef> => (None, <>)
+}
+
+BinOp2 : BinOp = {
+    "<" =>  Less,
+    ">" =>  Greater,
+    "<=" => LessEq,
+    ">=" => GreaterEq,
+    "~=" => Inequality,
+    "==" => Equality
+}
+
+BinOp6 : BinOp = {
+    "<<" => ShiftLeft,
+    ">>" => ShiftRight
+}
+
+BinOp8 : BinOp = {
+    "+" => Addition,
+    "-" => Subtraction
+}
+
+BinOp9 : BinOp = {
+    "*" =>  Multiplication,
+    "/" =>  FloatDivision,
+    "//" => FloorDivision,
+    "%" =>  Modulo
+}
+
+UnOp : UnOp = {
+    "-" =>   UnaryMinus,
+    "not" => LogicalNot,
+    "#" =>   Length,
+    "~" =>   BitwiseNot
+}
+
+PExp<LPar>: Exp = {
+    <Var<LPar>> => Box::new(Var(<>)),
+    LPar <ExpDef> ")"
+}
+
+FunctionCall<LPar>: FunctionCall = {
+    <PrefixExp<LPar>> <Args> => Function(<>),
+    <PrefixExp<LPar>> ":" <NAME> <Args> => Method(<>)
+}
+
+TripleDot: () = { "..." }
+
+FuncBody: FuncBody = {
+    "(" <TripleDot?> ")" <Block> "end" => (vec![], <>),
+    "(" <SepList<",", NAME>> <("," <TripleDot>)?> ")" <Block> "end" => (<>)
+}
+
+Args: Vec<Exp> = {
+    "(" ")" => vec![],
+    "(" <SepList<",", ExpDef>> ")",
+    <LITERALSTRING> => vec![Box::new(LiteralString(<>))],
+    <TableConstr> => vec![Box::new(Table(<>))]
+}
+
+extern {
+    type Error = crate::parser::LexingError;
+    type Location = usize;
+
+    enum Token {
+        NAME =>           Token::NAME(<String>),
+        Number =>         Token::Number(<Number>),
+        LITERALSTRING =>  Token::LITERALSTRING(<String>),
+        "and" =>          Token::AND,
+        "break" =>        Token::BREAK,
+        "do" =>           Token::DO,
+        "else" =>         Token::ELSE,
+        "elseif" =>       Token::ELSEIF,
+        "end" =>          Token::END,
+        "false" =>        Token::FALSE,
+        "for" =>          Token::FOR,
+        "function" =>     Token::FUNCTION,
+        "goto" =>         Token::GOTO,
+        "if" =>           Token::IF,
+        "in" =>           Token::IN,
+        "local" =>        Token::LOCAL,
+        "nil" =>          Token::NIL,
+        "not" =>          Token::NOT,
+        "or" =>           Token::OR,
+        "repeat" =>       Token::REPEAT,
+        "return" =>       Token::RETURN,
+        "then" =>         Token::THEN,
+        "true" =>         Token::TRUE,
+        "until" =>        Token::UNTIL,
+        "while" =>        Token::WHILE,
+        "=" =>            Token::EQUAL,
+        "::" =>           Token::DOUBLECOLON,
+        ":" =>            Token::COLON,
+        ";" =>            Token::SEMICOLON,
+        "," =>            Token::COMMA,
+        "..." =>          Token::TRIPLEDOT,
+        ".." =>           Token::DOUBLEDOT,
+        "." =>            Token::DOT,
+        "(" =>            Token::LPAREN,
+        ")" =>            Token::RPAREN,
+        "+" =>            Token::PLUS,
+        "-" =>            Token::HYPHEN,
+        "*" =>            Token::ASTERIX,
+        "//" =>           Token::DOUBLESLASH,
+        "/" =>            Token::SLASH,
+        "^" =>            Token::HAT,
+        "%" =>            Token::PERCENT,
+        "&" =>            Token::AMPERSAND,
+        "~" =>            Token::TILDA,
+        "|" =>            Token::VERTICALBAR,
+        "<<" =>           Token::DOUBLELT,
+        ">>" =>           Token::DOUBLEGT,
+        "<" =>            Token::LT,
+        "<=" =>           Token::LTEQ,
+        ">" =>            Token::GT,
+        ">=" =>           Token::GTEQ,
+        "==" =>           Token::DOUBLEEQUAL,
+        "~=" =>           Token::TILDAEQUAL,
+        "#" =>            Token::SHARP,
+        "{" =>            Token::LBRACE,
+        "}" =>            Token::RBRACE,
+        "[" =>            Token::LBRACKET,
+        "]" =>            Token::RBRACKET,
+    }
+}

@@ -1,0 +1,8 @@
+(executables
+  (names run)
+  (modules value interp run)
+  (libraries luaparser))
+
+(env
+  (dev
+    (flags (:standard -warn-error -A))))
