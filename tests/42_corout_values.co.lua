@@ -1,7 +1,7 @@
-co = coroutine.create (function (a)
-    local c
-    c = coroutine.yield(a + 2)
-    return c * 2
+co = coroutine.create(function (a)
+  local c
+  c = coroutine.yield(a + 2)
+  return c * 2
 end)
 
 b = coroutine.mini_resume(co, 20)

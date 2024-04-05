@@ -1,9 +1,9 @@
 co = coroutine.create(function ()
-    print("a")
-    coroutine.yield()
-    print(coroutine.status(co))
-    coroutine.yield()
-    print("c")
+  print("a")
+  coroutine.yield()
+  print(coroutine.status(co))
+  coroutine.yield()
+  print("c")
 end
 )
 

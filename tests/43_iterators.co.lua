@@ -1,6 +1,7 @@
 function iter_merge (it1, it2)
   return
-    coroutine.create(function ()
+    coroutine.create(
+      function ()
         local v1, v2
         v1 = coroutine.mini_resume(it1)
         v2 = coroutine.mini_resume(it2)
@@ -13,12 +14,14 @@ function iter_merge (it1, it2)
           v2 = coroutine.mini_resume(it2)
         end
         return { [1] = v1; [2] = v2 }
-    end)
+      end
+    )
 end
 
 function iter_range(from, to)
   return
-    coroutine.create(function ()
+    coroutine.create(
+      function ()
         local incr, nitems
         if from <= to then
           incr = 1
@@ -33,8 +36,9 @@ function iter_range(from, to)
           from = from + incr
           nitems = nitems - 1
         end
-        return to
-    end)
+          return to
+      end
+    )
 end
 
 function print_iterator(it)

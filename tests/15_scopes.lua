@@ -1,14 +1,14 @@
 a = 18
 
 function f()
-    local a
-    a = 1;
-    res = function ()
-        a = a + 1;
-        return a
-    end
+  local a
+  a = 1;
+  res = function ()
     a = a + 1;
-    return res
+    return a
+  end
+  a = a + 1;
+  return res
 end
 
 f1 = f()
@@ -24,21 +24,21 @@ print(a)
 -- local. En particulier, la valeur dans l'environnement de la fonction
 -- appelante n'est pas modifiée.
 function main()
-    local a;
-    a = 42
-    function f()
-        local a
-        a = 1
-        res = function ()
-            a = a + 1;
-            return a
-        end
-        a = a + 1;
-        return res
+  local a;
+  a = 42
+  function f()
+    local a
+    a = 1
+    res = function ()
+      a = a + 1;
+      return a
     end
-    f1 = f()
-    f2 = f()
-    print(f1(), f1(), f2(), f1())
-    print(a)
+    a = a + 1;
+    return res
+  end
+  f1 = f()
+  f2 = f()
+  print(f1(), f1(), f2(), f1())
+  print(a)
 end
 

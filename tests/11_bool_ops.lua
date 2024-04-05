@@ -21,29 +21,29 @@ print(0 or 2)
 print(42 or 0)
 
 if false then
-    print "false is false"
+  print "false is false"
 end
 
 if nil then
-    print "nil is false"
+  print "nil is false"
 end
 
 if 0 then
-    print "ok"
+  print "ok"
 else
-    print "0 is true"
+  print "0 is true" 
 end
 
 if 1 then
-    print "ok"
+  print "ok"
 else
-    print "1 is true"
+  print "1 is true"
 end
 
 if "" then
-    print "ok"
+  print "ok"
 else
-    print "empty string is true"
+  print "empty string is true"
 end
 
 x = 1

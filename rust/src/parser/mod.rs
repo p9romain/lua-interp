@@ -12,17 +12,17 @@ lalrpop_mod!(pub parser, "/parser/parser.rs");
 pub struct LexingError();
 
 pub fn parse_and_simplify(input: &str) -> Result<Block, String> {
-    let lexer = lexer::Token::lexer_with_extras(input, Extras::new())
-        .spanned()
-        .map(|(token, span)| token.map(|token| (span.start, token, span.end)));
-    let parser = parser::BlockParser::new();
-    let ast = parser
-        .parse(lexer)
-        .map_err(|err| format!("Parsing error : {:?}", err))?;
-    simplify::simp_outerblock(ast).map_err(|s| {
-        format!(
-            "Input program uses a lua feature that mini-lua does not support: {}",
-            s
-        )
-    })
+  let lexer = lexer::Token::lexer_with_extras(input, Extras::new())
+    .spanned()
+    .map(|(token, span)| token.map(|token| (span.start, token, span.end)));
+  let parser = parser::BlockParser::new();
+  let ast = parser
+    .parse(lexer)
+    .map_err(|err| format!("Parsing error : {:?}", err))?;
+  simplify::simp_outerblock(ast).map_err(|s| {
+    format!(
+      "Input program uses a lua feature that mini-lua does not support: {}",
+      s
+    )
+  })
 }
