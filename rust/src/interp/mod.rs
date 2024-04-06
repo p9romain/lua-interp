@@ -41,7 +41,11 @@ impl Stat_ {
           ret => panic!("{} : not nil", ret)
         }
       },
-      Stat_::WhileDoEnd(_, _) => todo!(),
+      Stat_::WhileDoEnd(expr, stat) => {
+        while expr.interp(env).as_bool() {
+          stat.interp(env)
+        }
+      },
       Stat_::If(expr, stat_then, stat_else) => {
         if expr.interp(env).as_bool() { stat_then.interp(env) }
         else { stat_else.interp(env) }
