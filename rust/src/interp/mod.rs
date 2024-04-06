@@ -11,9 +11,20 @@ pub mod value;
 impl Block {
   // Interprétation d'un bloc
   fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> {
-    // todo : self.locals
-    self.body.interp(env) ;
-    self.ret.interp(env)
+    // local variables inside the function
+    let mut local_values = Vec::new() ;
+    for _ in 0..self.locals.len() {
+      local_values.push(Value::Nil) ;
+    } ;
+
+    // adding the local varaibles inside the current environment (only in this scope !)
+    let mut n_env = Env {
+        locals: env.locals.extend(&self.locals, local_values.into_iter()),
+        globals: env.globals,
+    } ;
+
+    self.body.interp(&mut n_env) ;
+    self.ret.interp(&mut n_env)
   }
 }
 
@@ -73,7 +84,18 @@ impl FunctionCall {
             println!("{}", to_print) ;
             Value::Nil
           },
-          Function::Closure(_, _, _) => unimplemented!()
+          Function::Closure(args, lenv, block) => {
+            // assigning values to the args
+            let arg_values = self.1
+              .iter()
+              .map(|expr| expr.interp(env)) ;
+            // adding the values in the env in order to acces them
+            let mut n_env = Env {
+                locals: lenv.extend(args, arg_values),
+                globals: env.globals,
+            } ;
+            block.interp(&mut n_env)
+          }
         }
       },
       val => panic!("{} is not a function name (string)", val),
@@ -96,8 +118,16 @@ impl Exp_ {
             Var::IndexTable(_, _) => todo!()
           }
         },
-        Exp_::ExpFunctionCall(_) => todo!(),
-        Exp_::FunctionDef(_) => todo!(),
+        Exp_::ExpFunctionCall(function) => function.interp(env),
+        Exp_::FunctionDef(function) => {
+          Value::Function(
+            Function::Closure(
+              &function.0, 
+              env.locals.clone(), 
+              &function.1
+            )
+          )
+        },
         Exp_::BinOp(bop, lhs, rhs) => {
           let lhs = lhs.interp(env) ;
           let rhs = rhs.interp(env) ;

@@ -103,12 +103,14 @@ impl<'ast, 'genv> Env<'ast, 'genv> {
   // présente dans un environnement local, alors il faut modifier la portée
   // correspondante. Sinon, il faut modifier l'environnement global, soit en
   // modifiant une entrée déjà existante, soit en en créant une nouvelle.
-  pub fn set(&mut self, name: &'ast Name, value: Value<'ast>) {
-    match self.locals.as_ref() {
-      LEnv::Cons(local, next) => unimplemented!(),
-      LEnv::Nil => {
-        let _ = self.globals.0.insert(name, value) ;
+  pub fn set(&mut self, key: &'ast Name, value: Value<'ast>) {
+    match self.locals.lookup(key) {
+      None => {
+        let _ = self.globals.0.insert(key, value) ;
         ()
+      },
+      Some(cell_value) => {
+        cell_value.replace(value) ;
       }
     }
   }

@@ -18,6 +18,10 @@ tests: refinterp ocaml rustrelease
 test: refinterp ocaml rustrelease
 	ocaml -I +unix unix.cma tests/runtests.ml $(TEST)
 
+ast: ocaml
+	cd ocaml; dune exec --display=quiet showast/showast.exe -- ../$(PROG)
+	cd ..
+
 clean:
 	cd ocaml; dune clean
 	cd rust; cargo clean; rm -f Cargo.lock
