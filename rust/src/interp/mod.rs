@@ -42,7 +42,10 @@ impl Stat_ {
         }
       },
       Stat_::WhileDoEnd(_, _) => todo!(),
-      Stat_::If(_, _, _) => todo!(),
+      Stat_::If(expr, stat_then, stat_else) => {
+        if expr.interp(env).as_bool() { stat_then.interp(env) }
+        else { stat_else.interp(env) }
+      },
     }
   }
 }
