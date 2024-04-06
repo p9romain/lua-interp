@@ -91,8 +91,27 @@ impl Exp_ {
         },
         Exp_::ExpFunctionCall(_) => todo!(),
         Exp_::FunctionDef(_) => todo!(),
-        Exp_::BinOp(_, _, _) => todo!(),
-        Exp_::UnOp(_, _) => todo!(),
+        Exp_::BinOp(bop, lhs, rhs) => {
+          match bop {
+            BinOp::Addition => lhs.interp(env).add(rhs.interp(env)),
+            BinOp::Subtraction => lhs.interp(env).sub(rhs.interp(env)),
+            BinOp::Multiplication => lhs.interp(env).mul(rhs.interp(env)),
+            BinOp::Equality => Value::Bool(lhs.interp(env) == rhs.interp(env)),
+            BinOp::Inequality => Value::Bool(lhs.interp(env) != rhs.interp(env)),
+            BinOp::Less => Value::Bool(lhs.interp(env).lt(rhs.interp(env))),
+            BinOp::Greater => Value::Bool(!lhs.interp(env).le(rhs.interp(env))),
+            BinOp::LessEq => Value::Bool(lhs.interp(env).le(rhs.interp(env))),
+            BinOp::GreaterEq => Value::Bool(!lhs.interp(env).lt(rhs.interp(env))),
+            BinOp::LogicalAnd => todo!(),
+            BinOp::LogicalOr => todo!(),
+          }
+        },
+        Exp_::UnOp(uop, expr) => {
+          match uop {
+            UnOp::UnaryMinus => expr.interp(env).neg(),
+            UnOp::Not => Value::Bool(!expr.interp(env).as_bool()),
+          }
+        },
         Exp_::Table(_) => todo!(),
     }
   }
