@@ -92,7 +92,7 @@ impl<'ast, 'genv> Env<'ast, 'genv> {
       None => {
         match self.globals.0.get(name).as_ref() {
           Some(&v) => v.clone(),
-          None => panic!("{} not in the current scope", name)
+          None => Value::Nil
         }
       },
       Some(&v) => v.clone().into_inner()
@@ -103,7 +103,13 @@ impl<'ast, 'genv> Env<'ast, 'genv> {
   // présente dans un environnement local, alors il faut modifier la portée
   // correspondante. Sinon, il faut modifier l'environnement global, soit en
   // modifiant une entrée déjà existante, soit en en créant une nouvelle.
-  pub fn set(&mut self, name: &'ast Name, v: Value) {
-    unimplemented!()
+  pub fn set(&mut self, name: &'ast Name, value: Value<'ast>) {
+    match self.locals.as_ref() {
+      LEnv::Cons(local, next) => unimplemented!(),
+      LEnv::Nil => {
+        let _ = self.globals.0.insert(name, value) ;
+        ()
+      }
+    }
   }
 }
