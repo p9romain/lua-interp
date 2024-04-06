@@ -3,7 +3,7 @@ use self::{
   value::{Function, Value},
 };
 use crate::parser::ast::*;
-use std::{collections::HashMap, rc::Rc};
+use std::{borrow::Borrow, collections::HashMap, rc::Rc};
 
 mod env;
 pub mod value;
@@ -85,10 +85,19 @@ impl FunctionCall {
             Value::Nil
           },
           Function::Closure(args, lenv, block) => {
-            // assigning values to the args
+            let lack_of_values =
+              if self.1.len() < args.len()
+              {
+                args.len() - self.1.len()
+              }
+              else
+              {
+                0
+              } ;
             let arg_values = self.1
               .iter()
-              .map(|expr| expr.interp(env)) ;
+              .map(|expr| expr.interp(env))
+              .chain(vec![Value::Nil; lack_of_values]) ;
             // adding the values in the env in order to acces them
             let mut n_env = Env {
                 locals: lenv.extend(args, arg_values),
