@@ -1,5 +1,5 @@
 use crate::{interp::value::Value, parser::ast::Name};
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // Tout comme en OCaml, les environnements de l'interprète mini-lua en Rust se
 // composent d'un environnement local et d'un environnement global.
@@ -54,12 +54,7 @@ impl<'ast> LEnv<'ast> {
   fn lookup(&self, name: &Name) -> Option<&RefCell<Value<'ast>>> {
     match self {
       Self::Nil => None,
-      Self::Cons(local, next) => {
-        match local.get(name) {
-          Some(v) => Some(v),
-          None => next.lookup(name)
-        }
-      }
+      Self::Cons(local, next) => local.get(name).or_else(|| next.lookup(name))
     }
   }
 
@@ -90,10 +85,10 @@ impl<'ast, 'genv> Env<'ast, 'genv> {
   pub fn lookup(&self, name: &Name) -> Value<'ast> {
     match self.locals.lookup(name).as_ref() {
       None => {
-        match self.globals.0.get(name).as_ref() {
-          Some(&v) => v.clone(),
-          None => Value::Nil
-        }
+       self.globals.0
+        .get(name)
+        .as_ref()
+        .map_or(Value::Nil, |&value| value.clone())
       },
       Some(&v) => v.clone().into_inner()
     }
@@ -105,13 +100,8 @@ impl<'ast, 'genv> Env<'ast, 'genv> {
   // modifiant une entrée déjà existante, soit en en créant une nouvelle.
   pub fn set(&mut self, key: &'ast Name, value: Value<'ast>) {
     match self.locals.lookup(key) {
-      None => {
-        let _ = self.globals.0.insert(key, value) ;
-        ()
-      },
-      Some(cell_value) => {
-        cell_value.replace(value) ;
-      }
+      None => { let _ = self.globals.0.insert(key, value) ; },
+      Some(cell_value) => { cell_value.replace(value) ; }
     }
   }
 }

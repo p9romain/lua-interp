@@ -3,21 +3,23 @@ use self::{
   value::{Function, Value},
 };
 use crate::parser::ast::*;
-use std::{borrow::Borrow, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 mod env;
 pub mod value;
 
 impl Block {
   // Interprétation d'un bloc
-  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> {
+  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> 
+  {
     // local variables inside the function
     let mut local_values = Vec::new() ;
     for _ in 0..self.locals.len() {
       local_values.push(Value::Nil) ;
     } ;
 
-    // adding the local varaibles inside the current environment (only in this scope !)
+    // adding the local varaibles inside the current environment 
+    // (only in this scope !)
     let mut n_env = Env {
         locals: env.locals.extend(&self.locals, local_values.into_iter()),
         globals: env.globals,
@@ -43,7 +45,14 @@ impl Stat_ {
             let value = expr.interp(env) ;
             env.set(name, value)
           },
-          Var::IndexTable(_, _) => todo!(),
+          Var::IndexTable(table, key) => {
+            let table = table.interp(env).as_table() ;
+            let key = key.interp(env).as_table_key() ;
+            let value = expr.interp(env) ;
+            let _ = table.clone()
+              .borrow_mut()
+              .insert(key, value) ;
+          }
         }
       },
       Self::StatFunctionCall(function) => {
@@ -67,54 +76,47 @@ impl Stat_ {
 
 impl FunctionCall {
   // Interprétation d'un appel de fonction
-  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> {
-    match self.0.interp(env)
+  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> 
+  {
+    match self.0.interp(env).as_function()
     {
-      Value::Function(function) => {
-        match function {
-          Function::Print => {
-            let to_print = self.1
-              .iter()
-              .map(|expr| expr.interp(env))
-              .fold("".to_owned(), |acc, value| {
-                  if acc == "" { format!("{}", value) }
-                  else { format!("{}\t{}", acc, value) }
-                }
-              ) ;
-            println!("{}", to_print) ;
-            Value::Nil
-          },
-          Function::Closure(args, lenv, block) => {
-            let lack_of_values =
-              if self.1.len() < args.len()
-              {
-                args.len() - self.1.len()
-              }
-              else
-              {
-                0
-              } ;
-            let arg_values = self.1
-              .iter()
-              .map(|expr| expr.interp(env))
-              .chain(vec![Value::Nil; lack_of_values]) ;
-            // adding the values in the env in order to acces them
-            let mut n_env = Env {
-                locals: lenv.extend(args, arg_values),
-                globals: env.globals,
-            } ;
-            block.interp(&mut n_env)
-          }
-        }
+      Function::Print => {
+        let print = self.1
+          .iter()
+          .map(|expr| expr.interp(env))
+          .fold("".to_owned(), 
+            |acc, value| {
+              if acc == "" { format!("{value}") }
+              else { format!("{acc}\t{value}") }
+            }
+          ) ;
+        println!("{print}") ;
+        Value::Nil
       },
-      val => panic!("{} is not a function name (string)", val),
+      Function::Closure(args, lenv, block) => {
+        let lack_of_args =
+          if self.1.len() < args.len() { args.len() - self.1.len() }
+          else { 0 } ;
+        let arg_values = self.1
+          .iter()
+          .map(|expr| expr.interp(env))
+          // padding
+          .chain(vec![Value::Nil; lack_of_args]) ;
+        // adding the values in the env in order to acces them
+        let mut n_env = Env {
+            locals: lenv.extend(args, arg_values),
+            globals: env.globals,
+        } ;
+        block.interp(&mut n_env)
+      }
     }
   }
 }
 
 impl Exp_ {
   // Interprétation d'une expression
-  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> {
+  fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> 
+  {
     match self {
         Exp_::Nil => Value::Nil,
         Exp_::False => Value::Bool(false),
@@ -124,7 +126,14 @@ impl Exp_ {
         Exp_::Var(var) => {
           match var {
             Var::Name(name) => env.lookup(name),
-            Var::IndexTable(_, _) => todo!()
+            Var::IndexTable(table, key) => {
+              let table = table.interp(env).as_table() ;
+              let key = key.interp(env).as_table_key() ;
+              table.clone()
+                .borrow()
+                .get(&key)
+                .map_or(Value::Nil, |value| value.clone())
+            }
           }
         },
         Exp_::ExpFunctionCall(function) => function.interp(env),
@@ -139,28 +148,16 @@ impl Exp_ {
         },
         Exp_::BinOp(bop, lhs, rhs) => {
           match bop {
-            // Because of the lazyness
+            // because of the lazyness
             BinOp::LogicalAnd => {
               let interp_lhs = lhs.interp(env) ;
-              if interp_lhs.as_bool() 
-              {
-                rhs.interp(env)
-              }
-              else
-              {
-                interp_lhs
-              }
+              if interp_lhs.as_bool() { rhs.interp(env) }
+              else { interp_lhs }
             },
             BinOp::LogicalOr => {
               let interp_lhs = lhs.interp(env) ;
-              if interp_lhs.as_bool() 
-              {
-                interp_lhs
-              }
-              else
-              {
-                rhs.interp(env)
-              }
+              if interp_lhs.as_bool() { interp_lhs }
+              else { rhs.interp(env) }
             },
             _ => {
               let interp_lhs = lhs.interp(env) ;
@@ -186,7 +183,17 @@ impl Exp_ {
             UnOp::Not => Value::Bool(!expr.interp(env).as_bool()),
           }
         },
-        Exp_::Table(_) => todo!(),
+        Exp_::Table(items) => {
+          let mut table = HashMap::new() ;
+          for (key, value) in items.iter() {
+            let _ = table.insert(
+              key.interp(env)
+                .as_table_key(),
+              value.interp(env)
+            ) ;
+          }
+          Value::Table(Rc::new(RefCell::new(table)))
+        },
     }
   }
 }
