@@ -129,20 +129,46 @@ impl Exp_ {
           )
         },
         Exp_::BinOp(bop, lhs, rhs) => {
-          let lhs = lhs.interp(env) ;
-          let rhs = rhs.interp(env) ;
           match bop {
-            BinOp::Addition => lhs.add(rhs),
-            BinOp::Subtraction => lhs.sub(rhs),
-            BinOp::Multiplication => lhs.mul(rhs),
-            BinOp::Equality => Value::Bool(lhs == rhs),
-            BinOp::Inequality => Value::Bool(lhs != rhs),
-            BinOp::Less => Value::Bool(lhs.lt(rhs)),
-            BinOp::Greater => Value::Bool(!lhs.le(rhs)),
-            BinOp::LessEq => Value::Bool(lhs.le(rhs)),
-            BinOp::GreaterEq => Value::Bool(!lhs.lt(rhs)),
-            BinOp::LogicalAnd => Value::Bool(lhs.as_bool() && rhs.as_bool()),
-            BinOp::LogicalOr => Value::Bool(lhs.as_bool() || rhs.as_bool())
+            // Because of the lazyness
+            BinOp::LogicalAnd => {
+              let interp_lhs = lhs.interp(env) ;
+              if interp_lhs.as_bool() 
+              {
+                rhs.interp(env)
+              }
+              else
+              {
+                interp_lhs
+              }
+            },
+            BinOp::LogicalOr => {
+              let interp_lhs = lhs.interp(env) ;
+              if interp_lhs.as_bool() 
+              {
+                interp_lhs
+              }
+              else
+              {
+                rhs.interp(env)
+              }
+            },
+            _ => {
+              let interp_lhs = lhs.interp(env) ;
+              let interp_rhs = rhs.interp(env) ;
+              match bop {
+                BinOp::Addition => interp_lhs.add(interp_rhs),
+                BinOp::Subtraction => interp_lhs.sub(interp_rhs),
+                BinOp::Multiplication => interp_lhs.mul(interp_rhs),
+                BinOp::Equality => Value::Bool(interp_lhs == interp_rhs),
+                BinOp::Inequality => Value::Bool(interp_lhs != interp_rhs),
+                BinOp::Less => Value::Bool(interp_lhs.lt(interp_rhs)),
+                BinOp::Greater => Value::Bool(!interp_lhs.le(interp_rhs)),
+                BinOp::LessEq => Value::Bool(interp_lhs.le(interp_rhs)),
+                BinOp::GreaterEq => Value::Bool(!interp_lhs.lt(interp_rhs)),
+                _ => unreachable!()
+              }
+            }
           }
         },
         Exp_::UnOp(uop, expr) => {

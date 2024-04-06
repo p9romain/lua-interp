@@ -29,10 +29,10 @@ Running all the tests (this uses all the .lua files in the `../lua/` directory a
     make test TEST=tests/01_print.lua
 ```
 
-To show the syntax tree corresponding to a mini-Lua program `prog.lua` after parsing by the OCaml parser (the AST in Rust should be equivalent), move to the `ocaml` directory then run:
+To show the syntax tree corresponding to a mini-Lua program `prog.lua` after parsing by the OCaml parser (the AST in Rust should be equivalent):
 
 ```
-    dune exec --display=quiet showast/showast.exe -- prog.lua
+    make ast PROG=prog.lua
 ```
 
 The *lua reference interpreter* source is in the `lua` directory. It can be built by typing `make refinterp`, and run using:
