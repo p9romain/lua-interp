@@ -147,20 +147,18 @@ impl Exp_ {
           )
         },
         Exp_::BinOp(bop, lhs, rhs) => {
+          let interp_lhs = lhs.interp(env) ; 
           match bop {
             // because of the lazyness
             BinOp::LogicalAnd => {
-              let interp_lhs = lhs.interp(env) ;
               if interp_lhs.as_bool() { rhs.interp(env) }
               else { interp_lhs }
             },
             BinOp::LogicalOr => {
-              let interp_lhs = lhs.interp(env) ;
               if interp_lhs.as_bool() { interp_lhs }
               else { rhs.interp(env) }
             },
             _ => {
-              let interp_lhs = lhs.interp(env) ;
               let interp_rhs = rhs.interp(env) ;
               match bop {
                 BinOp::Addition => interp_lhs.add(interp_rhs),
@@ -178,9 +176,10 @@ impl Exp_ {
           }
         },
         Exp_::UnOp(uop, expr) => {
+          let expr = expr.interp(env) ;
           match uop {
-            UnOp::UnaryMinus => expr.interp(env).neg(),
-            UnOp::Not => Value::Bool(!expr.interp(env).as_bool()),
+            UnOp::UnaryMinus => expr.neg(),
+            UnOp::Not => Value::Bool(!expr.as_bool()),
           }
         },
         Exp_::Table(items) => {
