@@ -34,9 +34,3 @@ To show the syntax tree corresponding to a mini-Lua program `prog.lua` after par
 ```
     make ast PROG=prog.lua
 ```
-
-The *lua reference interpreter* source is in the `lua` directory. It can be built by typing `make refinterp`, and run using:
-
-```
-    lua/mini_lua.sh prog.lua
-```
