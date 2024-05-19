@@ -53,7 +53,7 @@ impl Stat_ {
       Self::StatFunctionCall(function) => {
         match function.interp(env) {
           Value::Nil => (),
-          ret => panic!("{} : not nil", ret)
+          ret => panic!("{} : return value not nil", ret)
         }
       },
       Stat_::WhileDoEnd(expr, stat) => {
