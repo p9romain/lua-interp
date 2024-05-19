@@ -41,9 +41,9 @@ let interp_args (env : env)
     loop [] l k
 
 let rec interp_block (env : env) 
-                 (blk : block)
-                 (curr_co : coroutine)
-                 (k : value -> unit) : unit =
+                     (blk : block)
+                     (curr_co : coroutine)
+                     (k : value -> unit) : unit =
   let local_values = create_scope blk.locals [] in
   let n_env = Value.{ env with locals = local_values :: env.locals } in
   interp_stat n_env blk.body curr_co (
