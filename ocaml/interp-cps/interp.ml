@@ -14,8 +14,8 @@ let interp_args (env : env)
       | [] -> k (List.rev acc)
       | expr :: ll ->
         f env expr (
-          fun (res_val : 'b) : unit ->
-            loop (res_val :: acc) ll k
+          fun (res : 'b) : unit ->
+            loop (res :: acc) ll k
         )
     in
     loop [] l k
@@ -56,15 +56,57 @@ and interp_stat (env : env)
       fun (_ : unit) : unit ->
         interp_stat env stat' k
     )
+  | Assign (var, expr) -> (
+    match var with
+    | Name name ->
+      interp_exp env expr (
+        fun (value : value) : unit ->
+          Value.set_ident env name value ;
+          k ()
+      )
+    | IndexTable (table, key) ->
+      interp_exp env table (
+        fun (table : value) : unit ->
+          interp_exp env key (
+            fun (key : value) : unit ->
+              interp_exp env expr (
+                fun (value : value) : unit ->
+                  let table = Value.as_table table in
+                  let key = Value.as_table_key key in
+                  Hashtbl.replace table key value ;
+                  k ()
+              )
+          )
+      )
+
+  )
   | FunctionCall func -> (
     interp_funcall env func (
-      fun (ret_value : value) : unit ->
-        match ret_value with
+      fun (ret : value) : unit ->
+        match ret with
         | Nil -> k ()
         | _ -> failwith "function should return nil"
     )
   )
-  | _ -> assert false
+  | WhileDoEnd (expr, stat) ->
+    interp_exp env expr (
+      fun (value : value) : unit ->
+        if Value.as_bool value then
+          interp_stat env stat (
+            fun (_ : unit) : unit ->
+              interp_stat env (WhileDoEnd (expr, stat)) k
+          )
+        else
+          k ()
+    )
+  | If (expr, stat_then, stat_else) ->
+    interp_exp env expr (
+      fun (value : value) : unit ->
+        if Value.as_bool value then
+          interp_stat env stat_then k
+        else
+          interp_stat env stat_else k
+    )
 
 and interp_funcall (env : env) 
                    (func, values : functioncall) 
@@ -80,6 +122,10 @@ and interp_funcall (env : env)
               @@ List.map Value.to_string values
             in
             k Nil
+          | Closure (args, lenv, block) ->
+            let scope = create_scope args values in
+            let n_env = Value.{ env with locals = scope :: lenv.locals } in
+            interp_block n_env block k
           | _ -> assert false
       )
   )

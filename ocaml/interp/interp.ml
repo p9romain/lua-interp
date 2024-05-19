@@ -57,11 +57,11 @@ and interp_stat (env : env)
     while Value.as_bool @@ interp_exp env expr do
       interp_stat env stat
     done
-  | If (expr, stat, stat') ->
+  | If (expr, stat_then, stat_else) ->
     if Value.as_bool @@ interp_exp env expr then
-      interp_stat env stat
+      interp_stat env stat_then
     else
-      interp_stat env stat'
+      interp_stat env stat_else
 
 (* Interprète un appel de fonction *)
 and interp_funcall (env : env) 
