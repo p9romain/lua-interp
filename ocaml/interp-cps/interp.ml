@@ -3,15 +3,59 @@ type value = Value.t
 type coroutine = Value.coroutine
 type env = Value.env
 
+let interp_args (env : env) 
+                (l : 'a list) 
+                (f : env -> 'a -> ('b -> unit) -> unit)
+                (k : 'b list -> unit) : unit =
+    let rec loop (acc : 'b list) 
+                 (l : 'a list) 
+                 (k : 'b list -> unit) : unit =
+      match l with
+      | [] -> k (List.rev acc)
+      | expr :: ll ->
+        f env expr (
+          fun (res_val : 'b) : unit ->
+            loop (res_val :: acc) ll k
+        )
+    in
+    loop [] l k
+
+let create_scope (names: string list) 
+                 (values: value list) : (name, value) Hashtbl.t =
+  let values = ref values in
+  let items = List.to_seq 
+    @@ List.map (
+      fun (name : string) : (name * value) ->
+        match !values with
+        | [] -> name, Nil (* Not enough given params *)
+        | value :: next ->
+          values := next ; 
+          name, value
+    )
+    names 
+  in
+  Hashtbl.of_seq items
+
 let rec interp_block (env : env) 
                      (blk : block) 
                      (k : value -> unit) : unit =
-  assert false
+  let local_values = create_scope blk.locals [] in
+  let n_env = Value.{ env with locals = local_values :: env.locals } in
+  interp_stat n_env blk.body (
+    fun (_ : unit) : unit ->
+      interp_exp n_env blk.ret k
+  )
 
 and interp_stat (env : env) 
                 (stat : stat) 
                 (k : unit -> unit) : unit =
   match stat with
+  | Nop -> k ()
+  | Seq (stat, stat') ->
+    interp_stat env stat (
+      fun (_ : unit) : unit ->
+        interp_stat env stat' k
+    )
   | FunctionCall func -> (
     interp_funcall env func (
       fun (ret_value : value) : unit ->
@@ -25,22 +69,19 @@ and interp_stat (env : env)
 and interp_funcall (env : env) 
                    (func, values : functioncall) 
                    (k: value -> unit) : unit =
-  let values = List.map (
-    fun (expr : exp) : value ->
-      interp_exp env expr
-  ) 
-  values
-  in
-  interp_exp env func (
-    fun (func : value) : unit ->
-      match Value.as_function func with
-      | Print ->
-        let () = Printf.printf "%s\n" 
-          @@ String.concat "\t" 
-          @@ List.map Value.to_string values
-        in
-        k Nil
-      | _ -> assert false
+  interp_args env values interp_exp (
+    fun (values : value list) : unit ->
+      interp_exp env func (
+        fun (func : value) : unit ->
+          match Value.as_function func with
+          | Print ->
+            let () = Printf.printf "%s\n" 
+              @@ String.concat "\t" 
+              @@ List.map Value.to_string values
+            in
+            k Nil
+          | _ -> assert false
+      )
   )
 
 and interp_exp (env : env) 
@@ -115,17 +156,24 @@ and interp_exp (env : env)
         | Not -> k @@ Bool (not @@ Value.as_bool expr)
     )
   )
-  | Table _ -> assert false
-    (* let items = List.to_seq
-      @@ List.map (
-        fun (key, value : exp * exp) : (Value.tkey * value) ->
-          let key = Value.as_table_key @@ interp_exp env key in
-          let value = interp_exp env value in
-          key, value
+  | Table items ->
+    interp_args env items (
+      fun (env : env)
+          (key, value : exp * exp)
+          (k' : (Value.tkey * value) -> unit) : unit ->
+        interp_exp env key (
+        fun (key : value) : unit ->
+          interp_exp env value (
+            fun (value : value) : unit ->
+              let key = Value.as_table_key key in
+              k' (key, value)
+          )
       )
-    items
-    in
-    Table (Hashtbl.of_seq items) *)
+    )
+    (
+      fun (items : (Value.tkey * value) list) : unit ->
+        k @@ Table (Hashtbl.of_seq @@ List.to_seq items)
+    )
 
 let run ast =
   let coroutine : (Value.tkey, value) Hashtbl.t = Hashtbl.create 4 in
