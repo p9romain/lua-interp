@@ -13,10 +13,7 @@ impl Block {
   fn interp<'ast, 'genv>(&'ast self, env: &mut Env<'ast, 'genv>) -> Value<'ast> 
   {
     // local variables inside the function
-    let mut local_values = Vec::new() ;
-    for _ in 0..self.locals.len() {
-      local_values.push(Value::Nil) ;
-    } ;
+    let local_values = vec![Value::Nil; self.locals.len()] ;
 
     // adding the local varaibles inside the current environment 
     // (only in this scope !)
@@ -49,9 +46,7 @@ impl Stat_ {
             let table = table.interp(env).as_table() ;
             let key = key.interp(env).as_table_key() ;
             let value = expr.interp(env) ;
-            let _ = table.clone()
-              .borrow_mut()
-              .insert(key, value) ;
+            let _ = table.borrow_mut().insert(key, value) ;
           }
         }
       },
@@ -94,14 +89,16 @@ impl FunctionCall {
         Value::Nil
       },
       Function::Closure(args, lenv, block) => {
-        let lack_of_args =
-          if self.1.len() < args.len() { args.len() - self.1.len() }
-          else { 0 } ;
+        // number of missing arguments (we ignore if there is to much arguments)
+        // saturating_sub because they're usize
+        let lack_of_args = 0.max( args.len().saturating_sub(self.1.len()) ) ;
+
         let arg_values = self.1
           .iter()
           .map(|expr| expr.interp(env))
           // padding
           .chain(vec![Value::Nil; lack_of_args]) ;
+
         // adding the values in the env in order to acces them
         let mut n_env = Env {
             locals: lenv.extend(args, arg_values),
@@ -186,8 +183,7 @@ impl Exp_ {
           let mut table = HashMap::new() ;
           for (key, value) in items.iter() {
             let _ = table.insert(
-              key.interp(env)
-                .as_table_key(),
+              key.interp(env).as_table_key(),
               value.interp(env)
             ) ;
           }

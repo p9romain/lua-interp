@@ -11,9 +11,9 @@ let create_scope (names: string list)
     @@ List.map (
       fun (name : string) : (name * value) ->
         match !values with
-        | [] -> name, Nil
+        | [] -> name, Nil (* Not enough given params *)
         | value :: next ->
-          values := next ;
+          values := next ; 
           name, value
     )
     names 
@@ -65,8 +65,7 @@ and interp_stat (env : env)
 
 (* Interprète un appel de fonction *)
 and interp_funcall (env : env) 
-                   (fc : functioncall) : value =
-  let (func, values) = fc in
+                   (func, values : functioncall) : value =
   let values = List.map (
     fun (expr : exp) : value ->
       interp_exp env expr 
@@ -76,8 +75,8 @@ and interp_funcall (env : env)
   match Value.as_function @@ interp_exp env func with
   | Print ->
     let () = Printf.printf "%s\n" 
-    @@ String.concat "\t" 
-    @@ List.map Value.to_string values
+      @@ String.concat "\t" 
+      @@ List.map Value.to_string values
     in
     Nil
   | Closure (args, lenv, block) ->

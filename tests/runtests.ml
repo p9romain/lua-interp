@@ -150,14 +150,15 @@ let test_dir tests_dir =
   ) testfiles_co
 
 let test_file test_file =
-  Printf.printf "============== Running interpreter written in OCaml  ==============\n";
-  test_long run_ocaml_interp_on_file test_file;
-  Printf.printf "\n============== Running interpreter written in Rust ==============\n";
-  test_long run_rust_interp_on_file test_file;
-  if Filename.check_suffix test_file ".co.lua" then (
-    Printf.printf "\n============== Running interpreter written in OCaml (CPS variant) ==============\n";
-    test_long run_ocaml_cps_interp_on_file test_file
-  )
+  let () = 
+    if not @@ Filename.check_suffix test_file ".co.lua" then
+      Printf.printf "============== Running interpreter written in OCaml  ==============\n";
+      test_long run_ocaml_interp_on_file test_file;
+      Printf.printf "\n============== Running interpreter written in Rust ==============\n";
+      test_long run_rust_interp_on_file test_file;
+  in
+  Printf.printf "\n============== Running interpreter written in OCaml (CPS variant) ==============\n";
+  test_long run_ocaml_cps_interp_on_file test_file
 
 let () =
   match test_input with
