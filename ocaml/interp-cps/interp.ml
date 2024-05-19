@@ -31,7 +31,7 @@ let interp_args (env : env)
                  (l : 'a list) 
                  (k : 'b list -> unit) : unit =
       match l with
-      | [] -> k (List.rev acc)
+      | [] -> k @@ List.rev acc
       | expr :: ll ->
         f env expr curr_co (
           fun (res : 'b) : unit ->
